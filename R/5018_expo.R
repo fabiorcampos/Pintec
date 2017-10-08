@@ -1,5 +1,6 @@
 library(sidrar)
-library(data.table)
+library(dplyr)
+library(tidyr)
 
 ### Variáveis selecionadas das empresas, por atividades da indústria, 
 ### do setor de eletricidade e gás e dos serviços selecionados
@@ -11,14 +12,14 @@ df5018 = get_sidra(5018, variable = "allxp", period = "last", geo = "Brazil",
 
 ### Organize data
 df_geral = df5018[,5:11] # select variables
+names(df_geral)[1] <- "var_cod" # rename variable
+names(df_geral)[2] <- "variavel" # rename variable
 names(df_geral)[3] <- "cod_setor" # rename variable
 names(df_geral)[4] <- "setor" # rename variable
-names(df_geral)[1] <- "var_cod" # rename variable
 names(df_geral)[6] <- "medida" # rename variable
 names(df_geral)[7] <- "total" # rename variable
-names(df_geral)[2] <- "variavel" # rename variable
-
 nomes_completos = c("Telecom", "Atividades dos Serviços de TI", 
+                    "Desenvolvimento de Softwares sob encomenda",
           "Desenvolvimento e Licenciamento de programas customizados",
           "Desenvolvimento e Licenciamento de programas não-customizados",
           "Outros serviços de TI",
@@ -26,25 +27,73 @@ nomes_completos = c("Telecom", "Atividades dos Serviços de TI",
           "Serviços de Arquitetura e Engenharia",
           "Pesquisa e Desenvolvimento")
 
+### Extract just ICT sectors
+ict_sector <- c(129402, 129403, 129404, 129405, 129406, 129407, 129408, 129409, 129410)
+df_ict <- filter(df_geral, cod_setor %in% ict_sector)
+
+### Extract just 1 variable and convert in a vector
+nemp = select(df_ict, var_cod, total)
+nemp = filter(nemp, var_cod == 630)
+nemp = nemp[,2]
+
+### Create a vector of variables names
+nome_variavel = select(df_ict, variavel, cod_setor)
+nome_variavel = filter(nome_variavel, cod_setor == 129402)
+nome_variavel = nome_variavel[,-2]
+
+
+### Function to extract 1 variable and convert in a vector
+fvar = function(x){
+      y = select(df_ict, var_cod, total)
+      y = filter(y, var_cod == x)
+      y = y[,2]
+}
+
+test = fvar(5977)
+
+# testdf = data.frame(n_emp = nemp, inovaram = test, row.names = nomes_completos)
+
 ### Function por variável
 var_fun = function(var, title) {
-      names = c("TE", "AT", 
+      names = c("TE", "AT",
+                "SE",
                 "DC",
                 "DN",
                 "OS",
                 "TD",
                 "SA",
                 "PD")
-      vec_setor = c(129402, 129403, 129404, 39420, 129405, 129406, 129407, 129408, 129409, 129410)
-      x = subset(df_geral, var_cod == var & cod_setor == vec_setor,
-                 select = c(setor, medida, total))
-      is.na(x$cod_sector)
+      nomes_completos = c("TE - Telecom", 
+                          "AT - Atividades dos Serviços de TI", 
+                          "SE - Desenvolvimento de Softwares sob encomenda",
+                          "DC - Desenvolvimento e Licenciamento de programas customizados",
+                          "DN - Desenvolvimento e Licenciamento de programas não-customizados",
+                          "OS - Outros serviços de TI",
+                          "TD - Tratamento de dados",
+                          "SA - Serviços de Arquitetura e Engenharia",
+                          "PD - Pesquisa e Desenvolvimento")
+      
+      ict_sector <- c(129402, 129403, 129404, 129405, 129406, 129407, 129408, 129409, 129410)
+      
+      x = filter(df_geral, cod_setor %in% ict_sector)
+      x = subset(x, var_cod == var & cod_setor == ict_sector, select = c(setor, medida, total))
       x$freq = x$total / sum(x$total) * 100
-      print(x[,-2])
-      barplot(x$freq, names.arg = names, xlab = "Setores",
-              ylab = "Percentual(%)", ylim = c(0,100), main = title, 
-              ps = .7, cex.axis = .8)
+      barplot(x$total, names.arg = names, xlab = "Setores",
+              ylab = "Valor", main = title,
+              ps = .7, cex.axis = .7, cex.main = .75)
+      legend("topright", legend = nomes_completos, cex = .5)
 }
 
-var_fun(5977, "Empresas que inovaram")
-                                           
+### Function to generate plots for each variable
+var.code = c(5975,5976,5977,5978,5979,5980,5981,630,864)
+nome_variavel = select(df_ict, variavel, cod_setor) 
+nome_variavel = filter(nome_variavel, cod_setor == 129402)
+nome_variavel = nome_variavel[,-2]
+variaveis = data.frame(var = var.code, nome = nome_variavel)
+                                     
+plots = for(row in 1:nrow(variaveis)) {
+      x = variaveis[row,1]
+      y = variaveis[row,2]
+      var_fun(x,y)
+}
+
